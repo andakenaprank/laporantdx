@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Form Laporan TD</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="form-container">
+    <div class="progressbar">
+    <div class="progress-step active" data-step="1">1</div>
+    <div class="progress-step" data-step="2">2</div>
+    <div class="progress-step" data-step="3">3</div>
+    <div class="progress-step" data-step="4">4</div>
+  </div>
+    <form id="reportForm" action="/submit" method="POST" novalidate>
+      <!-- Step 1 -->
+      <div class="form-step active" id="step-1">
+        <h3>Step 1: Identitas Petugas</h3>
+        <input type="text" name="petugas_td" placeholder="Nama Petugas TD" data-req="true">
+        <input type="text" name="petugas_pdu" placeholder="Nama Petugas PDU" data-req="true">
+        <input type="text" name="petugas_transmisi" placeholder="Nama Petugas Transmisi" data-req="true">
+        <button type="button" onclick="nextStep()">Next</button>
+      </div>
+
+      <!-- Step 2 -->
+      <div class="form-step" id="step-2">
+        <h3>Step 2: Bukti</h3>
+        <input type="url" name="bukti_studio" placeholder="Link Studio & Master Control" data-req="true">
+        <input type="url" name="bukti_streaming" placeholder="Link Streaming" data-req="true">
+        <input type="url" name="bukti_subcontrol" placeholder="Link Sub Control" data-req="true">
+        <button type="button" onclick="prevStep()">Back</button>
+        <button type="button" onclick="nextStep()">Next</button>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="form-step" id="step-3">
+        <h3>Step 3: Acara - Acara</h3>
+        <div>
+          <input type="text" name="acara_15" placeholder="Acara 15.00 - 15.59" data-req="true">
+          <select name="format_15" data-req="true">
+            <option value="">Pilih Format</option>
+            <option>Playback</option>
+            <option>Relay</option>
+            <option>Live Std 1</option>
+            <option>Live Std 2</option>
+            <option>Live Std 3</option>
+          </select>
+        </div>
+        <div>
+          <input type="text" name="acara_16" placeholder="Acara 16.00 - 16.59" data-req="true">
+          <select name="format_16" data-req="true">
+            <option value="">Pilih Format</option>
+            <option>Playback</option>
+            <option>Relay</option>
+            <option>Live Std 1</option>
+            <option>Live Std 2</option>
+            <option>Live Std 3</option>
+          </select>
+        </div>
+        <div>
+          <input type="text" name="acara_17" placeholder="Acara 17.00 - 17.59" data-req="true">
+          <select name="format_17" data-req="true">
+            <option value="">Pilih Format</option>
+            <option>Playback</option>
+            <option>Relay</option>
+            <option>Live Std 1</option>
+            <option>Live Std 2</option>
+            <option>Live Std 3</option>
+          </select>
+        </div>
+        <div>
+          <input type="text" name="acara_18" placeholder="Acara 18.00 - 18.59" data-req="true">
+          <select name="format_18" data-req="true">
+            <option value="">Pilih Format</option>
+            <option>Playback</option>
+            <option>Relay</option>
+            <option>Live Std 1</option>
+            <option>Live Std 2</option>
+            <option>Live Std 3</option>
+          </select>
+        </div>
+        <button type="button" onclick="prevStep()">Back</button>
+        <button type="button" onclick="nextStep()">Next</button>
+      </div>
+
+      <!-- Step 4 -->
+      <div class="form-step" id="step-4">
+        <h3>Step 4: Kendala - Kendala</h3>
+        <p style="font-size: 13px; color: #666;">(Opsional, biarkan kosong jika tidak ada kendala)</p>
+        <div id="kendalaContainer"></div>
+        <button type="button" class="btn-small" onclick="addKendala()">+ Tambah Kendala</button><br>
+        <button type="button" onclick="prevStep()">Back</button>
+        <button type="submit">Submit</button>
+      </div>
+      <div id="statusMessage" style="margin-top: 15px; font-weight: bold; color: green;"></div>
+    </form>
+  </div>
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
