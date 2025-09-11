@@ -1,30 +1,38 @@
 from flask import Flask, render_template, request, jsonify, send_file
-import mysql.connector
+import os, io, json
+import psycopg2
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
-from reportlab.pdfgen import canvas
-import io
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
-import psycopg2
+from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
+from dotenv import load_dotenv
+load_dotenv()
 app = Flask(__name__)
 
-# 🔹 Konfigurasi MySQL
-db = psycopg2.connect(
-    host="dpg-d30fbt15pdvs73fuu480-a.oregon-postgres.render.com",
-    database="laporan_tdx",
-    user="laporan_tdx_user",       # ganti kalau user Anda berbeda
-    password="U4dwK5k9oOeQVxCH1Ye9dI4eCYwCQQqf"  # ganti dengan password PostgreSQL Anda
-)
+# 🔹 Database connection
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError("❌ DATABASE_URL tidak ditemukan di environment variables!")
+
+db = psycopg2.connect(DATABASE_URL, sslmode="require")
 cursor = db.cursor()
 
-# 🔹 Setup Google Sheets API
+# 🔹 Google Sheets setup
 scope = ["https://spreadsheets.google.com/feeds",
          "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name("google_creds.json", scope)
+
+if os.getenv("GOOGLE_CREDS"):
+    # Render: ambil dari environment variable
+    creds_dict = json.loads(os.getenv("GOOGLE_CREDS"))
+    creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+else:
+    # Lokal: pakai file google_creds.json
+    creds = ServiceAccountCredentials.from_json_keyfile_name("google_creds.json", scope)
+
 client = gspread.authorize(creds)
 sheet = client.open_by_key("10u7E3c_IA5irWT0XaKb4eb10taOocH1Q9BK7UrlccDU").sheet1
 
@@ -40,7 +48,6 @@ def submit():
         data = request.form.to_dict(flat=False)
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        # 🔹 Simpan ke MySQL
         sql = """
         INSERT INTO laporanx (
             tanggal, nama_td, nama_pdu, nama_tx,
@@ -76,7 +83,6 @@ def submit():
         cursor.execute(sql, values)
         last_id = cursor.fetchone()[0]
         db.commit()
-          # 🔹 ambil ID laporan
 
         # 🔹 Simpan ke Google Sheets
         sheet.append_row(list(values))
@@ -92,7 +98,6 @@ def submit():
 
 
 @app.route("/download_pdf/<int:laporan_id>")
-@app.route("/download_pdf/<int:laporan_id>")
 def download_pdf(laporan_id):
     cursor.execute("SELECT * FROM laporanx WHERE id=%s", (laporan_id,))
     row = cursor.fetchone()
@@ -100,7 +105,7 @@ def download_pdf(laporan_id):
     if not row:
         return "Laporan tidak ditemukan", 404
 
-    # 🔹 mapping kolom biar gampang dipanggil
+    # 🔹 mapping kolom
     data = {
         "tanggal": row[1],
         "petugas_td": row[2],
@@ -118,17 +123,15 @@ def download_pdf(laporan_id):
         "link_kendala": row[18],
     }
 
-    # 🔹 Buat PDF dengan Platypus
+    # 🔹 Generate PDF
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4)
     styles = getSampleStyleSheet()
     elements = []
 
-    # Judul
     elements.append(Paragraph("LAPORAN TEKNIS HARIAN", styles["Heading1"]))
     elements.append(Spacer(1, 12))
 
-    # Step 1: Identitas
     identitas = [
         ["Tanggal", data["tanggal"]],
         ["Petugas TD", data["petugas_td"]],
@@ -136,15 +139,12 @@ def download_pdf(laporan_id):
         ["Petugas Transmisi", data["petugas_transmisi"]],
     ]
     t1 = Table(identitas, colWidths=[150, 300])
-    t1.setStyle(TableStyle([
-        ("BOX", (0,0), (-1,-1), 1, colors.black),
-        ("INNERGRID", (0,0), (-1,-1), 0.5, colors.grey),
-    ]))
+    t1.setStyle(TableStyle([("BOX", (0,0), (-1,-1), 1, colors.black),
+                            ("INNERGRID", (0,0), (-1,-1), 0.5, colors.grey)]))
     elements.append(Paragraph("Step 1: Identitas Petugas", styles["Heading3"]))
     elements.append(t1)
     elements.append(Spacer(1, 12))
 
-    # Step 2: Bukti
     bukti = [
         ["Studio", f'<font color="blue"><u>{data["bukti_studio"]}</u></font>'],
         ["Streaming", f'<font color="blue"><u>{data["bukti_streaming"]}</u></font>'],
@@ -152,15 +152,12 @@ def download_pdf(laporan_id):
     ]
     bukti_rows = [[Paragraph(r[0], styles["Normal"]), Paragraph(r[1], styles["Normal"])] for r in bukti]
     t2 = Table(bukti_rows, colWidths=[150, 300])
-    t2.setStyle(TableStyle([
-        ("BOX", (0,0), (-1,-1), 1, colors.black),
-        ("INNERGRID", (0,0), (-1,-1), 0.5, colors.grey),
-    ]))
+    t2.setStyle(TableStyle([("BOX", (0,0), (-1,-1), 1, colors.black),
+                            ("INNERGRID", (0,0), (-1,-1), 0.5, colors.grey)]))
     elements.append(Paragraph("Step 2: Bukti", styles["Heading3"]))
     elements.append(t2)
     elements.append(Spacer(1, 12))
 
-    # Step 3: Acara
     acara = [
         ["15.00-15.59", data["acara_15"], data["format_15"]],
         ["16.00-16.59", data["acara_16"], data["format_16"]],
@@ -168,50 +165,40 @@ def download_pdf(laporan_id):
         ["18.00-18.59", data["acara_18"], data["format_18"]],
     ]
     t3 = Table([["Jam", "Acara", "Format"]] + acara, colWidths=[100, 200, 150])
-    t3.setStyle(TableStyle([
-        ("BOX", (0,0), (-1,-1), 1, colors.black),
-        ("INNERGRID", (0,0), (-1,-1), 0.5, colors.grey),
-        ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
-    ]))
+    t3.setStyle(TableStyle([("BOX", (0,0), (-1,-1), 1, colors.black),
+                            ("INNERGRID", (0,0), (-1,-1), 0.5, colors.grey),
+                            ("BACKGROUND", (0,0), (-1,0), colors.lightgrey)]))
     elements.append(Paragraph("Step 3: Acara - Acara", styles["Heading3"]))
     elements.append(t3)
     elements.append(Spacer(1, 12))
 
-    # Step 4: Kendala
     kendalas = []
     kets = data["kendala"].split(",") if data["kendala"] else []
     wkt = data["waktu_kendala"].split(",") if data["waktu_kendala"] else []
     lks = data["link_kendala"].split(",") if data["link_kendala"] else []
-
     for i in range(len(kets)):
         kendalas.append([
             kets[i] if i < len(kets) else "-",
             wkt[i] if i < len(wkt) else "-",
             f'<font color="blue"><u>{lks[i]}</u></font>' if i < len(lks) else "-"
         ])
-
     if kendalas:
-        kendala_rows = [[Paragraph(c, styles["Normal"]) if idx != 2 else Paragraph(c, styles["Normal"]) for idx, c in enumerate(row)] for row in kendalas]
-        t4 = Table([["Keterangan", "Waktu", "Link"]] + kendala_rows, colWidths=[200, 100, 200])
-        t4.setStyle(TableStyle([
-            ("BOX", (0,0), (-1,-1), 1, colors.black),
-            ("INNERGRID", (0,0), (-1,-1), 0.5, colors.grey),
-            ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
-        ]))
+        kendala_rows = [[Paragraph(c, styles["Normal"]) for c in row] for row in kendalas]
+        t4 = Table([["Keterangan", "Waktu", "Link"]] + kendala_rows,
+                   colWidths=[200, 100, 200])
+        t4.setStyle(TableStyle([("BOX", (0,0), (-1,-1), 1, colors.black),
+                                ("INNERGRID", (0,0), (-1,-1), 0.5, colors.grey),
+                                ("BACKGROUND", (0,0), (-1,0), colors.lightgrey)]))
         elements.append(Paragraph("Step 4: Kendala - Kendala", styles["Heading3"]))
         elements.append(t4)
 
-    # Build
     doc.build(elements)
     buffer.seek(0)
 
-    return send_file(
-        buffer,
-        as_attachment=True,
-        download_name=f"laporan_{laporan_id}.pdf",
-        mimetype="application/pdf"
-    )
-
+    return send_file(buffer,
+                     as_attachment=True,
+                     download_name=f"laporan_{laporan_id}.pdf",
+                     mimetype="application/pdf")
 
 
 if __name__ == "__main__":
