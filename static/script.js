@@ -39,6 +39,46 @@ function validateStep(step) {
   }
   return true;
 }
+// 🔹 Tambah Kendala
+function addKendala() {
+  const container = document.getElementById("kendalaContainer");
+  const row = document.createElement("div");
+  row.className = "kendala-row";
+  row.style.marginBottom = "10px";
+
+  // Input keterangan
+  const ket = document.createElement("input");
+  ket.type = "text";
+  ket.name = "kendala_keterangan[]";
+  ket.placeholder = "Keterangan Kendala";
+
+  // Input waktu
+  const waktu = document.createElement("input");
+  waktu.type = "time";
+  waktu.name = "kendala_waktu[]";
+
+  // Input upload foto (opsional)
+  const foto = document.createElement("input");
+  foto.type = "file";
+  foto.name = "kendala_foto[]"; // 👉 backend akan baca multiple files
+  foto.accept = "image/*";
+
+  // Tombol hapus
+  const removeBtn = document.createElement("button");
+  removeBtn.type = "button";
+  removeBtn.textContent = "❌ Hapus";
+  removeBtn.className = "remove-btn";
+  removeBtn.onclick = () => container.removeChild(row);
+
+  // Susun elemen
+  row.appendChild(ket);
+  row.appendChild(waktu);
+  row.appendChild(foto);
+  row.appendChild(removeBtn);
+
+  container.appendChild(row);
+}
+
 
 // 🔹 PROGRESS BAR
 function updateProgress(step) {
@@ -68,10 +108,11 @@ function addKendala() {
   waktu.type = "time";
   waktu.name = "kendala_waktu[]";
 
-  const bukti = document.createElement("input");
-  bukti.type = "url";
-  bukti.name = "kendala_bukti[]";
-  bukti.placeholder = "Link Bukti Kendala";
+  // ✅ Input file foto (pengganti link manual)
+  const foto = document.createElement("input");
+  foto.type = "file";
+  foto.name = "kendala_foto[]";
+  foto.accept = "image/*";
 
   const removeBtn = document.createElement("button");
   removeBtn.type = "button";
@@ -81,10 +122,13 @@ function addKendala() {
 
   row.appendChild(ket);
   row.appendChild(waktu);
-  row.appendChild(bukti);
+  row.appendChild(foto);   // hanya foto, tidak ada link manual
   row.appendChild(removeBtn);
+
   container.appendChild(row);
 }
+
+
 
 // 🔹 Submit AJAX
 document.getElementById("reportForm").addEventListener("submit", async function (e) {

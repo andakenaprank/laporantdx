@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify, send_file
-import os, io, json
+import os, io, json, pickle
 import psycopg2
 import gspread
 from datetime import datetime
@@ -7,9 +7,13 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
-from oauth2client.service_account import ServiceAccountCredentials
-from google.oauth2.service_account import Credentials
 from dotenv import load_dotenv
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
+from PIL import Image
+from google.oauth2.service_account import Credentials
+from oauth2client.service_account import ServiceAccountCredentials
+import base64, pickle
 load_dotenv()
 app = Flask(__name__)
 
@@ -26,15 +30,49 @@ scope = ["https://spreadsheets.google.com/feeds",
          "https://www.googleapis.com/auth/drive"]
 
 if os.getenv("GOOGLE_CREDS"):
-    # Render: ambil dari environment variable
     creds_dict = json.loads(os.getenv("GOOGLE_CREDS"))
     creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
 else:
-    # Lokal: pakai file google_creds.json
     creds = ServiceAccountCredentials.from_json_keyfile_name("google_creds.json", scope)
 
 client = gspread.authorize(creds)
 sheet = client.open_by_key("10u7E3c_IA5irWT0XaKb4eb10taOocH1Q9BK7UrlccDU").sheet1
+
+# 🔹 Load OAuth Token (user delegated)
+token_b64 = os.getenv("GOOGLE_TOKEN")
+if not token_b64:
+    raise RuntimeError("❌ GOOGLE_TOKEN tidak ditemukan di environment variables!")
+
+token_data = base64.b64decode(token_b64)
+creds = pickle.loads(token_data)
+
+# 🔹 Folder ID masing-masing kategori
+STUDIO_FOLDER = "10qkm0wFbtCeG6qSoHbIEylivSew8gH0u"
+STREAMING_FOLDER = "1avnAbIZQ7jjlqsNVNEERPqDR6BruSi8t"
+SUBCONTROL_FOLDER = "15Su0y-6gchdmHyijoSwMvgQW8NV9osna"
+KENDALA_FOLDER = "101Biqep6gDbxzcFbcel02VWW31masi_T"
+
+# 🔹 Fungsi upload ke Google Drive
+def upload_to_drive(file, keterangan, waktu_str, folder_id):
+    img = Image.open(file)
+    img = img.convert("RGB")
+    buffer = io.BytesIO()
+    img.save(buffer, format="JPEG", optimize=True, quality=70)
+    buffer.seek(0)
+
+    safe_ket = keterangan.replace(" ", "_").replace("/", "-")
+    safe_waktu = waktu_str.replace(":", "-").replace(" ", "_")
+    filename = f"{safe_ket}_{safe_waktu}.jpg"
+
+    service = build("drive", "v3", credentials=creds)
+    file_metadata = {"name": filename, "parents": [folder_id]}
+    media = MediaIoBaseUpload(buffer, mimetype="image/jpeg")
+    uploaded = service.files().create(
+        body=file_metadata, media_body=media, fields="id"
+    ).execute()
+
+    file_id = uploaded.get("id")
+    return f"https://drive.google.com/file/d/{file_id}/view?usp=sharing"
 
 
 @app.route("/")
@@ -46,8 +84,32 @@ def index():
 def submit():
     try:
         data = request.form.to_dict(flat=False)
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        now = datetime.now()                 # untuk database
+        now_str = now.strftime("%Y-%m-%d_%H-%M-%S")  # untuk nama file
 
+        # 🔹 Upload bukti ke folder masing-masing
+        studio_file = request.files.get("bukti_studio")
+        streaming_file = request.files.get("bukti_streaming")
+        subcontrol_file = request.files.get("bukti_subcontrol")
+
+        studio_link = upload_to_drive(studio_file, "studio", now_str, STUDIO_FOLDER) if studio_file else ""
+        streaming_link = upload_to_drive(streaming_file, "streaming", now_str, STREAMING_FOLDER) if streaming_file else ""
+        subcontrol_link = upload_to_drive(subcontrol_file, "subcontrol", now_str, SUBCONTROL_FOLDER) if subcontrol_file else ""
+
+        # 🔹 Upload foto kendala
+        fotos = request.files.getlist("kendala_foto[]")
+        folder_links = []
+        for i, foto in enumerate(fotos):
+            if foto:
+                keterangan = data.get("kendala_keterangan[]", [""])[i]
+                waktu_input = data.get("kendala_waktu[]", [""])[i]
+                waktu_for_name = waktu_input if waktu_input else now_str
+                folder_link = upload_to_drive(foto, keterangan or "kendala", waktu_for_name, KENDALA_FOLDER)
+                folder_links.append(folder_link)
+
+        folder_link_str = ", ".join(folder_links)
+
+        # 🔹 Simpan ke database
         sql = """
         INSERT INTO laporanx (
             tanggal, nama_td, nama_pdu, nama_tx,
@@ -58,15 +120,14 @@ def submit():
         ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         RETURNING id;
         """
-        
         values = (
             now,
             data.get("petugas_td", [""])[0],
             data.get("petugas_pdu", [""])[0],
             data.get("petugas_transmisi", [""])[0],
-            data.get("bukti_studio", [""])[0],
-            data.get("bukti_streaming", [""])[0],
-            data.get("bukti_subcontrol", [""])[0],
+            studio_link,
+            streaming_link,
+            subcontrol_link,
             data.get("acara_15", [""])[0],
             data.get("format_15", [""])[0],
             data.get("acara_16", [""])[0],
@@ -77,7 +138,7 @@ def submit():
             data.get("format_18", [""])[0],
             ", ".join(data.get("kendala_keterangan[]", [])),
             ", ".join(data.get("kendala_waktu[]", [])),
-            ", ".join(data.get("kendala_bukti[]", []))
+            folder_link_str
         )
 
         cursor.execute(sql, values)
@@ -85,7 +146,7 @@ def submit():
         db.commit()
 
         # 🔹 Simpan ke Google Sheets
-        sheet.append_row(list(values))
+        sheet.append_row([str(v) for v in values])
 
         return jsonify({
             "status": "success",
@@ -101,11 +162,9 @@ def submit():
 def download_pdf(laporan_id):
     cursor.execute("SELECT * FROM laporanx WHERE id=%s", (laporan_id,))
     row = cursor.fetchone()
-
     if not row:
         return "Laporan tidak ditemukan", 404
 
-    # 🔹 mapping kolom
     data = {
         "tanggal": row[1],
         "petugas_td": row[2],
@@ -123,7 +182,6 @@ def download_pdf(laporan_id):
         "link_kendala": row[18],
     }
 
-    # 🔹 Generate PDF
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4)
     styles = getSampleStyleSheet()
@@ -133,7 +191,7 @@ def download_pdf(laporan_id):
     elements.append(Spacer(1, 12))
 
     identitas = [
-        ["Tanggal", data["tanggal"]],
+        ["Tanggal", str(data["tanggal"])],
         ["Petugas TD", data["petugas_td"]],
         ["Petugas PDU", data["petugas_pdu"]],
         ["Petugas Transmisi", data["petugas_transmisi"]],

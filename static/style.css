@@ -126,3 +126,38 @@ button {
   border-radius: 6px;
   cursor: pointer;
 }
+input[type="file"] {
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 8px;
+  margin-bottom: 12px;
+  background: #fafafa;
+  cursor: pointer;
+}
+.download-btn {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: #28a745;
+  color: white;
+  text-decoration: none;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.download-btn:hover {
+  background: #218838;
+}
+
+input[type="file"]::-webkit-file-upload-button {
+  background: #007bff;
+  border: none;
+  border-radius: 6px;
+  color: white;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+input[type="file"]::-webkit-file-upload-button:hover {
+  background: #0056b3;
+}

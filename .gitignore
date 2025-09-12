@@ -4,3 +4,6 @@ venv/
 .env
 google_creds.json
 reports/
+credentials.json
+token.pickle
+drive_auth.py
