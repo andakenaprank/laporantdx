@@ -20,27 +20,47 @@
     <form id="reportForm" action="/submit" method="POST" enctype="multipart/form-data" novalidate>
       
       <!-- Step 1 -->
-      <div class="form-step active" id="step-1">
-        <h3>Step 1: Identitas Petugas</h3>
-        <input type="text" name="petugas_td" placeholder="Nama Petugas TD" data-req="true">
-        <input type="text" name="petugas_pdu" placeholder="Nama Petugas PDU" data-req="true">
-        <input type="text" name="petugas_transmisi" placeholder="Nama Petugas Transmisi" data-req="true">
-        <button type="button" onclick="nextStep()">Next</button>
-      </div>
+        <div class="form-step active" id="step-1">
+  <h3>Identitas Petugas</h3>
+
+  <label>Tanggal</label>
+  <input type="date" name="tanggal_manual" id="tanggal_manual" data-req="true">
+
+  <label>Petugas TD</label>
+  <select name="petugas_td" id="petugas_td" data-req="true"></select>
+
+  <label>Petugas PDU</label>
+  <select name="petugas_pdu" id="petugas_pdu" data-req="true"></select>
+
+  <label>Petugas Transmisi</label>
+  <select name="petugas_transmisi" id="petugas_transmisi" data-req="true"></select>
+
+  <button type="button" onclick="nextStep()">Next</button>
+</div>
+
+
 
       <!-- Step 2 -->
       <div class="form-step" id="step-2">
-        <h3>Step 2: Bukti</h3>
-        <input type="file" name="bukti_studio" accept="image/*" required>
-        <input type="file" name="bukti_streaming" accept="image/*" required>
-        <input type="file" name="bukti_subcontrol" accept="image/*" required>
-        <button type="button" onclick="prevStep()">Back</button>
-        <button type="button" onclick="nextStep()">Next</button>
-      </div>
+  <h3>Bukti</h3>
+
+  <label for="bukti_studio">📷 Upload Bukti Studio</label>
+  <input type="file" id="bukti_studio" name="bukti_studio" accept="image/*" required>
+
+  <label for="bukti_streaming">📷 Upload Bukti Streaming</label>
+  <input type="file" id="bukti_streaming" name="bukti_streaming" accept="image/*" required>
+
+  <label for="bukti_subcontrol">📷 Upload Bukti Subcontrol</label>
+  <input type="file" id="bukti_subcontrol" name="bukti_subcontrol" accept="image/*" required>
+
+  <button type="button" onclick="prevStep()">Back</button>
+  <button type="button" onclick="nextStep()">Next</button>
+</div>
+
 
       <!-- Step 3 -->
       <div class="form-step" id="step-3">
-        <h3>Step 3: Acara - Acara</h3>
+        <h3>Acara - Acara</h3>
         <div>
           <input type="text" name="acara_15" placeholder="Acara 15.00 - 15.59" data-req="true">
           <select name="format_15" data-req="true">
@@ -91,7 +111,8 @@
 
       <!-- Step 4 -->
       <div class="form-step" id="step-4">
-        <h3>Step 4: Kendala - Kendala</h3>
+        <h3>Kendala - Kendala</h3>
+        <p>Kosongkan jika tidak ada kendala</p>
         <p style="font-size: 13px; color: #666;">(Opsional, biarkan kosong jika tidak ada kendala)</p>
         
         <div id="kendalaContainer"></div>

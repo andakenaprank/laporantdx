@@ -1,20 +1,22 @@
 let currentStep = 1;
 
+// 🔹 Tampilkan step tertentu
 function showStep(step) {
-  const steps = document.querySelectorAll('.form-step');
+  const steps = document.querySelectorAll(".form-step");
   steps.forEach((el, index) => {
     if (index === step - 1) {
-      el.classList.add('active');
-      el.querySelectorAll('[data-req="true"]').forEach(input => input.required = true);
+      el.classList.add("active");
+      el.querySelectorAll("[data-req='true']").forEach(input => input.required = true);
     } else {
-      el.classList.remove('active');
-      el.querySelectorAll('[data-req="true"]').forEach(input => input.required = false);
+      el.classList.remove("active");
+      el.querySelectorAll("[data-req='true']").forEach(input => input.required = false);
     }
   });
 
   updateProgress(step);
 }
 
+// 🔹 Navigasi step
 function nextStep() {
   if (validateStep(currentStep)) {
     currentStep++;
@@ -27,11 +29,12 @@ function prevStep() {
   showStep(currentStep);
 }
 
+// 🔹 Validasi field wajib
 function validateStep(step) {
   const currentStepDiv = document.querySelector(`#step-${step}`);
-  const inputs = currentStepDiv.querySelectorAll('[data-req="true"]');
+  const inputs = currentStepDiv.querySelectorAll("[data-req='true']");
   for (let input of inputs) {
-    if (!input.value.trim()) {
+    if (!input.value || !input.value.trim()) {
       input.focus();
       alert("Harap isi semua field sebelum lanjut!");
       return false;
@@ -39,48 +42,72 @@ function validateStep(step) {
   }
   return true;
 }
-// 🔹 Tambah Kendala
+
+// 🔹 Load daftar petugas dari database
+async function loadPetugas() {
+  try {
+    const res = await fetch("/api/petugas");
+    const data = await res.json();
+
+    // kelompokkan berdasarkan jenis
+    const grouped = {};
+    data.forEach(p => {
+      if (!grouped[p.jenis]) grouped[p.jenis] = [];
+      grouped[p.jenis].push(p);
+    });
+
+    function fillSelect(selectId, jenis) {
+      const select = document.getElementById(selectId);
+      if (!select) return;
+      select.innerHTML = "<option value=''>-- Pilih --</option>";
+      if (grouped[jenis]) {
+        grouped[jenis].forEach(p => {
+          select.innerHTML += `<option value="${p.nama}">${p.nama}</option>`;
+        });
+      }
+    }
+
+    fillSelect("petugas_td", "TD");
+    fillSelect("petugas_pdu", "PDU");
+    fillSelect("petugas_transmisi", "Transmisi");
+
+  } catch (err) {
+    console.error("❌ Gagal ambil data petugas:", err);
+  }
+}
+
+// 🔹 Tambah baris kendala
 function addKendala() {
   const container = document.getElementById("kendalaContainer");
   const row = document.createElement("div");
   row.className = "kendala-row";
   row.style.marginBottom = "10px";
 
-  // Input keterangan
   const ket = document.createElement("input");
   ket.type = "text";
   ket.name = "kendala_keterangan[]";
   ket.placeholder = "Keterangan Kendala";
 
-  // Input waktu
   const waktu = document.createElement("input");
   waktu.type = "time";
   waktu.name = "kendala_waktu[]";
 
-  // Input upload foto (opsional)
   const foto = document.createElement("input");
   foto.type = "file";
-  foto.name = "kendala_foto[]"; // 👉 backend akan baca multiple files
+  foto.name = "kendala_foto[]";
   foto.accept = "image/*";
 
-  // Tombol hapus
   const removeBtn = document.createElement("button");
   removeBtn.type = "button";
   removeBtn.textContent = "❌ Hapus";
   removeBtn.className = "remove-btn";
   removeBtn.onclick = () => container.removeChild(row);
 
-  // Susun elemen
-  row.appendChild(ket);
-  row.appendChild(waktu);
-  row.appendChild(foto);
-  row.appendChild(removeBtn);
-
+  row.append(ket, waktu, foto, removeBtn);
   container.appendChild(row);
 }
 
-
-// 🔹 PROGRESS BAR
+// 🔹 Progress bar
 function updateProgress(step) {
   const steps = document.querySelectorAll(".progress-step");
   steps.forEach((circle, index) => {
@@ -92,49 +119,14 @@ function updateProgress(step) {
   document.querySelector(".progressbar").style.setProperty("--progress-width", progress + "%");
 }
 
-// 🔹 Tambah Kendala
-function addKendala() {
-  const container = document.getElementById("kendalaContainer");
-  const row = document.createElement("div");
-  row.className = "kendala-row";
-  row.style.marginBottom = "10px";
-
-  const ket = document.createElement("input");
-  ket.type = "text";
-  ket.name = "kendala_keterangan[]";
-  ket.placeholder = "Keterangan Kendala";
-
-  const waktu = document.createElement("input");
-  waktu.type = "time";
-  waktu.name = "kendala_waktu[]";
-
-  // ✅ Input file foto (pengganti link manual)
-  const foto = document.createElement("input");
-  foto.type = "file";
-  foto.name = "kendala_foto[]";
-  foto.accept = "image/*";
-
-  const removeBtn = document.createElement("button");
-  removeBtn.type = "button";
-  removeBtn.textContent = "❌";
-  removeBtn.style.marginLeft = "5px";
-  removeBtn.onclick = () => container.removeChild(row);
-
-  row.appendChild(ket);
-  row.appendChild(waktu);
-  row.appendChild(foto);   // hanya foto, tidak ada link manual
-  row.appendChild(removeBtn);
-
-  container.appendChild(row);
-}
-
-
-
-// 🔹 Submit AJAX
+// 🔹 Submit via AJAX
 document.getElementById("reportForm").addEventListener("submit", async function (e) {
   e.preventDefault();
 
   const formData = new FormData(this);
+  const submitBtn = this.querySelector('button[type="submit"]');
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = `<span class="spinner"></span> Mengirim...`;
 
   try {
     const res = await fetch("/submit", {
@@ -144,27 +136,33 @@ document.getElementById("reportForm").addEventListener("submit", async function 
     const result = await res.json();
 
     const statusBox = document.getElementById("statusMessage");
-    statusBox.innerText = result.message;
     statusBox.style.color = result.status === "success" ? "green" : "red";
 
     if (result.status === "success") {
-  const statusBox = document.getElementById("statusMessage");
-  statusBox.innerHTML = `
-    ✅ ${result.message} <br>
-    <a href="${result.pdf_url}" target="_blank" class="download-btn">
-      📄 Download PDF
-    </a>
-  `;
+      statusBox.innerHTML = `
+        ✅ ${result.message} <br>
+        <a href="${result.pdf_url}" target="_blank" class="download-btn">
+          📄 Download PDF
+        </a>
+      `;
 
-  // Reset form setelah submit
-  this.reset();
-  currentStep = 1;
-  showStep(currentStep);
-}
+      this.reset();
+      currentStep = 1;
+      showStep(currentStep);
+    } else {
+      statusBox.innerText = result.message;
+    }
+
   } catch (err) {
     document.getElementById("statusMessage").innerText = "Terjadi kesalahan: " + err.message;
   }
+
+  submitBtn.disabled = false;
+  submitBtn.innerText = "Submit";
 });
 
 // 🔹 Inisialisasi
-showStep(currentStep);
+window.addEventListener("DOMContentLoaded", () => {
+  showStep(currentStep);
+  loadPetugas();
+});

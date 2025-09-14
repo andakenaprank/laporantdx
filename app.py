@@ -1,5 +1,5 @@
-from flask import Flask, render_template, request, jsonify, send_file
-import os, io, json, pickle
+from flask import Flask, render_template, request, jsonify, send_file, session, redirect, url_for
+import os, io, json, base64, pickle
 import psycopg2
 import gspread
 from datetime import datetime
@@ -13,9 +13,11 @@ from googleapiclient.http import MediaIoBaseUpload
 from PIL import Image
 from google.oauth2.service_account import Credentials
 from oauth2client.service_account import ServiceAccountCredentials
-import base64, pickle
+from werkzeug.security import check_password_hash
+
 load_dotenv()
 app = Flask(__name__)
+app.secret_key = os.getenv("SECRET_KEY", "rahasia-super")
 
 # 🔹 Database connection
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -23,7 +25,6 @@ if not DATABASE_URL:
     raise RuntimeError("❌ DATABASE_URL tidak ditemukan di environment variables!")
 
 db = psycopg2.connect(DATABASE_URL, sslmode="require")
-cursor = db.cursor()
 
 # 🔹 Google Sheets setup
 scope = ["https://spreadsheets.google.com/feeds",
@@ -42,7 +43,6 @@ sheet = client.open_by_key("10u7E3c_IA5irWT0XaKb4eb10taOocH1Q9BK7UrlccDU").sheet
 token_b64 = os.getenv("GOOGLE_TOKEN")
 if not token_b64:
     raise RuntimeError("❌ GOOGLE_TOKEN tidak ditemukan di environment variables!")
-
 token_data = base64.b64decode(token_b64)
 creds = pickle.loads(token_data)
 
@@ -52,7 +52,92 @@ STREAMING_FOLDER = "1avnAbIZQ7jjlqsNVNEERPqDR6BruSi8t"
 SUBCONTROL_FOLDER = "15Su0y-6gchdmHyijoSwMvgQW8NV9osna"
 KENDALA_FOLDER = "101Biqep6gDbxzcFbcel02VWW31masi_T"
 
-# 🔹 Fungsi upload ke Google Drive
+
+# ----------------- AUTH -----------------
+@app.route("/login_petugas")
+def login_petugas():
+    session["user_id"] = "petugas"
+    session["username"] = "petugas"
+    session["full_name"] = "Petugas Lapangan"
+    session["role"] = "petugas"
+    return redirect(url_for("index"))
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = request.form.get("username")
+        password = request.form.get("password")
+
+        with db.cursor() as cur:
+            cur.execute("SELECT id, username, password_hash, full_name FROM admins WHERE username=%s", (username,))
+            user = cur.fetchone()
+
+        if user and check_password_hash(user[2], password):
+            session["user_id"] = user[0]
+            session["username"] = user[1]
+            session["full_name"] = user[3]
+            session["role"] = "admin"
+            return redirect(url_for("admin_dashboard"))
+        else:
+            return render_template("login.html", error="Username atau password salah")
+
+    return render_template("login.html")
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+@app.before_request
+def require_login():
+    allowed_routes = ("login", "login_petugas", "static")
+    if request.endpoint not in allowed_routes and "user_id" not in session:
+        return redirect(url_for("login"))
+
+
+# ----------------- ADMIN -----------------
+@app.route("/admin")
+def admin_dashboard():
+    if session.get("role") != "admin":
+        return redirect(url_for("login"))
+    return render_template("admin.html")
+
+
+# ----------------- API PETUGAS -----------------
+@app.route("/api/petugas")
+def api_petugas():
+    if "user_id" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    jenis = request.args.get("jenis")
+    with db.cursor() as cur:
+        if jenis:
+            cur.execute("SELECT id, nama, jenis FROM petugas2 WHERE jenis=%s ORDER BY nama ASC", (jenis,))
+        else:
+            cur.execute("SELECT id, nama, jenis FROM petugas2 ORDER BY jenis, nama ASC")
+        rows = cur.fetchall()
+        colnames = [desc[0] for desc in cur.description]
+
+    data = [dict(zip(colnames, row)) for row in rows]
+    return jsonify(data)
+
+
+# ----------------- API LAPORAN -----------------
+@app.route("/api/laporan")
+def api_laporan():
+    if session.get("role") != "admin":
+        return jsonify({"error": "Unauthorized"}), 403
+
+    with db.cursor() as cur:
+        cur.execute("SELECT * FROM laporanx ORDER BY id DESC")
+        rows = cur.fetchall()
+        colnames = [desc[0] for desc in cur.description]
+
+    data = [dict(zip(colnames, row)) for row in rows]
+    return jsonify(data)
+
+
+# ----------------- UPLOAD DRIVE -----------------
 def upload_to_drive(file, keterangan, waktu_str, folder_id):
     img = Image.open(file)
     img = img.convert("RGB")
@@ -67,27 +152,24 @@ def upload_to_drive(file, keterangan, waktu_str, folder_id):
     service = build("drive", "v3", credentials=creds)
     file_metadata = {"name": filename, "parents": [folder_id]}
     media = MediaIoBaseUpload(buffer, mimetype="image/jpeg")
-    uploaded = service.files().create(
-        body=file_metadata, media_body=media, fields="id"
-    ).execute()
-
+    uploaded = service.files().create(body=file_metadata, media_body=media, fields="id").execute()
     file_id = uploaded.get("id")
     return f"https://drive.google.com/file/d/{file_id}/view?usp=sharing"
 
 
+# ----------------- FORM SUBMIT -----------------
 @app.route("/")
 def index():
     return render_template("index.html")
-
 
 @app.route("/submit", methods=["POST"])
 def submit():
     try:
         data = request.form.to_dict(flat=False)
-        now = datetime.now()                 # untuk database
-        now_str = now.strftime("%Y-%m-%d_%H-%M-%S")  # untuk nama file
+        now = datetime.now()
+        now_str = now.strftime("%Y-%m-%d_%H-%M-%S")
 
-        # 🔹 Upload bukti ke folder masing-masing
+        # upload bukti
         studio_file = request.files.get("bukti_studio")
         streaming_file = request.files.get("bukti_streaming")
         subcontrol_file = request.files.get("bukti_subcontrol")
@@ -96,7 +178,7 @@ def submit():
         streaming_link = upload_to_drive(streaming_file, "streaming", now_str, STREAMING_FOLDER) if streaming_file else ""
         subcontrol_link = upload_to_drive(subcontrol_file, "subcontrol", now_str, SUBCONTROL_FOLDER) if subcontrol_file else ""
 
-        # 🔹 Upload foto kendala
+        # upload kendala
         fotos = request.files.getlist("kendala_foto[]")
         folder_links = []
         for i, foto in enumerate(fotos):
@@ -109,15 +191,40 @@ def submit():
 
         folder_link_str = ", ".join(folder_links)
 
-        # 🔹 Simpan ke database
+        # 🔹 Tentukan kesimpulan
+        kesimpulan = "lancar"
+        waktu_kendala_list = data.get("kendala_waktu[]", [])
+        ada_sebelum = False
+        ada_sesudah = False
+
+        for w in waktu_kendala_list:
+            if not w:
+                continue
+            try:
+                jam, menit = map(int, w.split(":"))
+                if jam < 15:
+                    ada_sebelum = True
+                else:
+                    ada_sesudah = True
+            except:
+                continue
+
+        if ada_sebelum and ada_sesudah:
+            kesimpulan = "kurang lancar"
+        elif ada_sebelum:
+            kesimpulan = "ada kendala sebelum siaran"
+        elif ada_sesudah:
+            kesimpulan = "ada kendala saat siaran"
+
+        # simpan ke database
         sql = """
         INSERT INTO laporanx (
             tanggal, nama_td, nama_pdu, nama_tx,
             studio_link, streaming_link, subcontrol_link,
             acara_15, format_15, acara_16, format_16,
             acara_17, format_17, acara_18, format_18,
-            kendala, waktu_kendala, link_kendala
-        ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            kendala, waktu_kendala, link_kendala, kesimpulan
+        ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         RETURNING id;
         """
         values = (
@@ -137,15 +244,16 @@ def submit():
             data.get("acara_18", [""])[0],
             data.get("format_18", [""])[0],
             ", ".join(data.get("kendala_keterangan[]", [])),
-            ", ".join(data.get("kendala_waktu[]", [])),
-            folder_link_str
+            ", ".join(waktu_kendala_list),
+            folder_link_str,
+            kesimpulan
         )
 
-        cursor.execute(sql, values)
-        last_id = cursor.fetchone()[0]
-        db.commit()
+        with db.cursor() as cur:
+            cur.execute(sql, values)
+            last_id = cur.fetchone()[0]
+            db.commit()
 
-        # 🔹 Simpan ke Google Sheets
         sheet.append_row([str(v) for v in values])
 
         return jsonify({
@@ -158,10 +266,14 @@ def submit():
         return jsonify({"status": "error", "message": str(e)})
 
 
+# ----------------- DOWNLOAD PDF -----------------
 @app.route("/download_pdf/<int:laporan_id>")
 def download_pdf(laporan_id):
-    cursor.execute("SELECT * FROM laporanx WHERE id=%s", (laporan_id,))
-    row = cursor.fetchone()
+    with db.cursor() as cur:
+        cur.execute("SELECT * FROM laporanx WHERE id=%s", (laporan_id,))
+        row = cur.fetchone()
+        colnames = [desc[0] for desc in cur.description] if row else None
+
     if not row:
         return "Laporan tidak ditemukan", 404
 
@@ -180,6 +292,7 @@ def download_pdf(laporan_id):
         "kendala": row[16],
         "waktu_kendala": row[17],
         "link_kendala": row[18],
+        "kesimpulan": row[19],
     }
 
     buffer = io.BytesIO()
@@ -249,6 +362,9 @@ def download_pdf(laporan_id):
                                 ("BACKGROUND", (0,0), (-1,0), colors.lightgrey)]))
         elements.append(Paragraph("Step 4: Kendala - Kendala", styles["Heading3"]))
         elements.append(t4)
+
+    elements.append(Spacer(1, 12))
+    elements.append(Paragraph(f"Kesimpulan: <b>{data['kesimpulan']}</b>", styles["Heading2"]))
 
     doc.build(elements)
     buffer.seek(0)
