@@ -168,6 +168,9 @@ def submit():
         data = request.form.to_dict(flat=False)
         now = datetime.now()
         now_str = now.strftime("%Y-%m-%d_%H-%M-%S")
+                # 🔹 Gabungkan petugas transmisi (bisa lebih dari satu)
+        petugas_transmisi_list = data.get("petugas_transmisi[]", [])
+        petugas_transmisi = ", ".join(petugas_transmisi_list)
 
         # upload bukti
         studio_file = request.files.get("bukti_studio")
@@ -231,7 +234,7 @@ def submit():
             now,
             data.get("petugas_td", [""])[0],
             data.get("petugas_pdu", [""])[0],
-            data.get("petugas_transmisi", [""])[0],
+            petugas_transmisi,
             studio_link,
             streaming_link,
             subcontrol_link,

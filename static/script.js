@@ -66,14 +66,66 @@ async function loadPetugas() {
         });
       }
     }
+    function fillCards(containerId, jenis) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = "";
+  if (grouped[jenis]) {
+    grouped[jenis].forEach(p => {
+      const label = document.createElement("label");
+      label.className = "card-checkbox";
 
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.name = "petugas_transmisi[]";
+      input.value = p.nama;
+
+      const span = document.createElement("span");
+      span.textContent = p.nama;
+
+      label.appendChild(input);
+      label.appendChild(span);
+      container.appendChild(label);
+    });
+  }
+}
+
+
+  
+  
     fillSelect("petugas_td", "TD");
     fillSelect("petugas_pdu", "PDU");
-    fillSelect("petugas_transmisi", "Transmisi");
+    fillCards("transmisiCards", "Transmisi");
 
   } catch (err) {
     console.error("❌ Gagal ambil data petugas:", err);
   }
+}
+function addTransmisi() {
+  const container = document.getElementById("transmisiContainer");
+  const select = document.createElement("select");
+  select.name = "petugas_transmisi[]";
+  select.className = "petugas_transmisi";
+  select.setAttribute("data-req", "true");
+
+  // isi opsi dari cache petugas Transmisi
+  if (window.petugasTransmisiOptions) {
+    select.innerHTML = window.petugasTransmisiOptions;
+  }
+
+  // tombol hapus
+  const removeBtn = document.createElement("button");
+  removeBtn.type = "button";
+  removeBtn.textContent = "❌ Hapus";
+  removeBtn.className = "remove-btn";
+  removeBtn.onclick = () => container.removeChild(wrapper);
+
+  // wrapper untuk 1 baris
+  const wrapper = document.createElement("div");
+  wrapper.style.marginBottom = "8px";
+  wrapper.appendChild(select);
+  wrapper.appendChild(removeBtn);
+
+  container.appendChild(wrapper);
 }
 
 // 🔹 Tambah baris kendala

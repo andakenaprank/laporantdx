@@ -178,3 +178,79 @@ input[type="file"]::-webkit-file-upload-button:hover {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+/* Override style default Choices */
+.choices__inner {
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  padding: 6px;
+  min-height: 42px;
+  font-size: 14px;
+}
+
+.choices__list--multiple .choices__item {
+  background-color: #007bff;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 13px;
+  padding: 4px 8px;
+}
+
+.checkbox-grid {
+  display: flex;
+  flex-wrap: wrap;   /* kalau lebih dari 5, otomatis ke baris berikutnya */
+  gap: 10px 20px;    /* jarak antar checkbox */
+  margin-bottom: 15px;
+}
+
+.checkbox-grid label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.cards-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 15px;
+}
+
+.card-checkbox {
+  flex: 1 1 calc(20% - 12px); /* 5 card per baris */
+  min-width: 120px;
+  max-width: 180px;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 10px;
+  padding: 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  position: relative;
+}
+
+.card-checkbox:hover {
+  border-color: #007bff;
+  box-shadow: 0 4px 12px rgba(0,123,255,0.2);
+}
+
+.card-checkbox input[type="checkbox"] {
+  display: none; /* sembunyikan checkbox asli */
+}
+
+.card-checkbox span {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+}
+
+.card-checkbox input[type="checkbox"]:checked + span {
+  color: #007bff;
+  font-weight: bold;
+  border-color: #007bff;
+}
+

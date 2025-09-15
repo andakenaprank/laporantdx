@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Form Laporan TD</title>
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
@@ -32,8 +33,11 @@
   <label>Petugas PDU</label>
   <select name="petugas_pdu" id="petugas_pdu" data-req="true"></select>
 
-  <label>Petugas Transmisi</label>
-  <select name="petugas_transmisi" id="petugas_transmisi" data-req="true"></select>
+<label>Petugas Transmisi</label>
+<div id="transmisiCards" class="cards-grid"></div>
+
+
+
 
   <button type="button" onclick="nextStep()">Next</button>
 </div>
@@ -112,7 +116,7 @@
       <!-- Step 4 -->
       <div class="form-step" id="step-4">
         <h3>Kendala - Kendala</h3>
-        <p>Kosongkan jika tidak ada kendala</p>
+        
         <p style="font-size: 13px; color: #666;">(Opsional, biarkan kosong jika tidak ada kendala)</p>
         
         <div id="kendalaContainer"></div>
@@ -129,5 +133,6 @@
   </div>
 
   <script src="{{ url_for('static', filename='script.js') }}"></script>
+  <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
 </body>
 </html>
