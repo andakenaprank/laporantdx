@@ -385,106 +385,128 @@ def submit():
         return jsonify({"status": "error", "message": str(e)})
 
 # ----------------- DOWNLOAD PDF -----------------
+from flask import make_response
+
 @app.route("/download_pdf/<int:laporan_id>")
 def download_pdf(laporan_id):
-    with engine.connect() as conn:
-        row = conn.execute(text("SELECT * FROM laporanx WHERE id=:id"), {"id": laporan_id}).fetchone()
+    try:
+        with engine.connect() as conn:
+            row = conn.execute(
+                text("SELECT * FROM laporanx WHERE id=:id"),
+                {"id": laporan_id}
+            ).fetchone()
+    except Exception as e:
+        app.logger.exception("DB error saat ambil laporan")
+        return make_response(("Database error: " + str(e), 500))
 
     if not row:
-        return "Laporan tidak ditemukan", 404
+        return make_response(("Laporan tidak ditemukan", 404))
 
-    data = dict(row._mapping)
+    try:
+        data = dict(row._mapping)
 
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4)
-    styles = getSampleStyleSheet()
-    elements = []
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4)
+        styles = getSampleStyleSheet()
+        elements = []
 
-    elements.append(Paragraph("LAPORAN TEKNIS HARIAN", styles["Heading1"]))
-    elements.append(Spacer(1, 12))
+        def safe(s):  # hindari None
+            return "" if s is None else str(s)
 
-    identitas = [
-        ["ID", str(data.get("id"))],
-        ["Timestamp (WITA)", fmt_wita(data.get("timestamp_wib"))],  # berisi waktu WITA
-        ["Tanggal", fmt_wita(data.get("tanggal"))],
-        ["Petugas TD", data.get("nama_td")],
-        ["Petugas PDU", data.get("nama_pdu")],
-        ["Petugas Transmisi", data.get("nama_tx")],
-    ]
-    t1 = Table(identitas, colWidths=[150, 300])
-    t1.setStyle(TableStyle([
-        ("BOX", (0,0), (-1,-1), 1, colors.black),
-        ("INNERGRID", (0,0), (-1,-1), 0.5, colors.grey)
-    ]))
-    elements.append(Paragraph("Step 1: Identitas Petugas", styles["Heading3"]))
-    elements.append(t1)
-    elements.append(Spacer(1, 12))
+        def p(text):  # Paragraph aman
+            return Paragraph(text, styles["Normal"])
 
-    # Bukti
-    bukti = [
-        ["Studio", f'<font color="blue"><u>{data.get("studio_link","")}</u></font>'],
-        ["Streaming", f'<font color="blue"><u>{data.get("streaming_link","")}</u></font>'],
-        ["Subcontrol", f'<font color="blue"><u>{data.get("subcontrol_link","")}</u></font>'],
-    ]
-    bukti_rows = [[Paragraph(r[0], styles["Normal"]), Paragraph(r[1], styles["Normal"])] for r in bukti]
-    t2 = Table(bukti_rows, colWidths=[150, 300])
-    t2.setStyle(TableStyle([
-        ("BOX", (0,0), (-1,-1), 1, colors.black),
-        ("INNERGRID", (0,0), (-1,-1), 0.5, colors.grey)
-    ]))
-    elements.append(Paragraph("Step 2: Bukti", styles["Heading3"]))
-    elements.append(t2)
-    elements.append(Spacer(1, 12))
+        elements.append(Paragraph("LAPORAN TEKNIS HARIAN", styles["Heading1"]))
+        elements.append(Spacer(1, 12))
 
-    # Acara
-    acara = [
-        ["15.00-15.59", data.get("acara_15"), data.get("format_15")],
-        ["16.00-16.59", data.get("acara_16"), data.get("format_16")],
-        ["17.00-17.59", data.get("acara_17"), data.get("format_17")],
-        ["18.00-18.59", data.get("acara_18"), data.get("format_18")],
-    ]
-    t3 = Table([["Jam", "Acara", "Format"]] + acara, colWidths=[100, 200, 150])
-    t3.setStyle(TableStyle([
-        ("BOX", (0,0), (-1,-1), 1, colors.black),
-        ("INNERGRID", (0,0), (-1,-1), 0.5, colors.grey),
-        ("BACKGROUND", (0,0), (-1,0), colors.lightgrey)
-    ]))
-    elements.append(Paragraph("Step 3: Acara - Acara", styles["Heading3"]))
-    elements.append(t3)
-    elements.append(Spacer(1, 12))
+        identitas = [
+            ["ID", safe(data.get("id"))],
+            ["Timestamp (WITA)", fmt_wita(data.get("timestamp_wib"))],
+            ["Tanggal", fmt_wita(data.get("tanggal"))],
+            ["Petugas TD", safe(data.get("nama_td"))],
+            ["Petugas PDU", safe(data.get("nama_pdu"))],
+            ["Petugas Transmisi", safe(data.get("nama_tx"))],
+        ]
+        t1 = Table(identitas, colWidths=[150, 300])
+        t1.setStyle(TableStyle([
+            ("BOX", (0,0), (-1,-1), 1, colors.black),
+            ("INNERGRID", (0,0), (-1,-1), 0.5, colors.grey)
+        ]))
+        elements.append(Paragraph("Step 1: Identitas Petugas", styles["Heading3"]))
+        elements.append(t1)
+        elements.append(Spacer(1, 12))
 
-    # Kendala
-    kendalas = []
-    kets = (data.get("kendala") or "").split(",") if data.get("kendala") else []
-    wkt = (data.get("waktu_kendala") or "").split(",") if data.get("waktu_kendala") else []
-    lks = (data.get("link_kendala") or "").split(",") if data.get("link_kendala") else []
-    for i in range(max(len(kets), len(wkt), len(lks))):
-        kendalas.append([
-            kets[i] if i < len(kets) else "-",
-            wkt[i] if i < len(wkt) else "-",
-            f'<font color="blue"><u>{lks[i]}</u></font>' if i < len(lks) and lks[i] else "-"
-        ])
-    if kendalas:
-        kendala_rows = [[Paragraph(c, styles["Normal"]) for c in row] for row in kendalas]
-        t4 = Table([["Keterangan", "Waktu", "Link"]] + kendala_rows, colWidths=[200, 100, 200])
-        t4.setStyle(TableStyle([
+        # Bukti (jangan pakai markup HTML kalau sering crash, pakai plain link)
+        bukti = [
+            ["Studio", safe(data.get("studio_link",""))],
+            ["Streaming", safe(data.get("streaming_link",""))],
+            ["Subcontrol", safe(data.get("subcontrol_link",""))],
+        ]
+        t2 = Table(bukti, colWidths=[150, 300])
+        t2.setStyle(TableStyle([
+            ("BOX", (0,0), (-1,-1), 1, colors.black),
+            ("INNERGRID", (0,0), (-1,-1), 0.5, colors.grey)
+        ]))
+        elements.append(Paragraph("Step 2: Bukti (tautan)", styles["Heading3"]))
+        elements.append(t2)
+        elements.append(Spacer(1, 12))
+
+        # Acara
+        acara = [
+            ["15.00-15.59", safe(data.get("acara_15")), safe(data.get("format_15"))],
+            ["16.00-16.59", safe(data.get("acara_16")), safe(data.get("format_16"))],
+            ["17.00-17.59", safe(data.get("acara_17")), safe(data.get("format_17"))],
+            ["18.00-18.59", safe(data.get("acara_18")), safe(data.get("format_18"))],
+        ]
+        t3 = Table([["Jam", "Acara", "Format"]] + acara, colWidths=[100, 200, 150])
+        t3.setStyle(TableStyle([
             ("BOX", (0,0), (-1,-1), 1, colors.black),
             ("INNERGRID", (0,0), (-1,-1), 0.5, colors.grey),
             ("BACKGROUND", (0,0), (-1,0), colors.lightgrey)
         ]))
-        elements.append(Paragraph("Step 4: Kendala - Kendala", styles["Heading3"]))
-        elements.append(t4)
+        elements.append(Paragraph("Step 3: Acara - Acara", styles["Heading3"]))
+        elements.append(t3)
+        elements.append(Spacer(1, 12))
 
-    elements.append(Spacer(1, 12))
-    elements.append(Paragraph(f"Kesimpulan: <b>{data.get('kesimpulan','')}</b>", styles["Heading2"]))
+        # Kendala
+        kendalas = []
+        kets = safe(data.get("kendala")).split(",") if data.get("kendala") else []
+        wkt  = safe(data.get("waktu_kendala")).split(",") if data.get("waktu_kendala") else []
+        lks  = safe(data.get("link_kendala")).split(",") if data.get("link_kendala") else []
+        for i in range(max(len(kets), len(wkt), len(lks))):
+            kendalas.append([
+                kets[i].strip() if i < len(kets) else "-",
+                wkt[i].strip()  if i < len(wkt)  else "-",
+                lks[i].strip()  if i < len(lks)  else "-"
+            ])
+        if kendalas:
+            t4 = Table([["Keterangan", "Waktu", "Link"]] + kendalas, colWidths=[200, 100, 200])
+            t4.setStyle(TableStyle([
+                ("BOX", (0,0), (-1,-1), 1, colors.black),
+                ("INNERGRID", (0,0), (-1,-1), 0.5, colors.grey),
+                ("BACKGROUND", (0,0), (-1,0), colors.lightgrey)
+            ]))
+            elements.append(Paragraph("Step 4: Kendala - Kendala", styles["Heading3"]))
+            elements.append(t4)
 
-    doc.build(elements)
-    buffer.seek(0)
+        elements.append(Spacer(1, 12))
+        elements.append(Paragraph(f"Kesimpulan: <b>{safe(data.get('kesimpulan'))}</b>", styles["Heading2"]))
 
-    return send_file(buffer,
-                     as_attachment=True,
-                     download_name=f"laporan_{laporan_id}.pdf",
-                     mimetype="application/pdf")
+        # Build PDF
+        doc.build(elements)
+        buffer.seek(0)
+
+        # Kirim
+        return send_file(
+            buffer,
+            as_attachment=True,
+            download_name=f"laporan_{laporan_id}.pdf",
+            mimetype="application/pdf"
+        )
+    except Exception as e:
+        app.logger.exception("PDF build error")
+        return make_response(("PDF build error: " + str(e), 500))
+# ----------------- RUN APP -----------------
 
 if __name__ == "__main__":
     app.run(debug=True)
