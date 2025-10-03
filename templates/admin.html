@@ -5,65 +5,52 @@
   <title>Admin Dashboard</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <style>
-.table-container {
-  width: 100%;
-  overflow-x: auto;
-  margin-top: 15px;
-}
-.table-box {
-  margin: 20px auto;
-  padding: 10px;
-  background: #fff;
-  border-radius: 10px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  overflow: auto;           /* izinkan scroll jika perlu */
-  width: 95vw;              /* lebar relatif layar */
-  max-height: 80vh;
-  text-align: center;
-}
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+      margin-top: 15px;
+    }
+    .table-box {
+      margin: 20px auto;
+      padding: 10px;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      overflow: auto;
+      width: 95vw;
+      max-height: 80vh;
+      text-align: center;
+    }
+    .table-box table {
+      border-collapse: collapse;
+      font-size: 11px;
+      width: 100%;
+      table-layout: auto;
+    }
+    .table-box th, .table-box td {
+      border: 1px solid #ccc;
+      padding: 4px 6px;
+      white-space: nowrap;
+      text-align: left;
+    }
+    .table-box th {
+      background: #f5f5f5;
+      top: 0;
+    }
+    .table-box tr:nth-child(even) { background: #fafafa; }
 
-.table-box table {
-  border-collapse: collapse;
-  font-size: 11px;
-  width: 100%;              /* paksa tabel isi container */
-  table-layout: auto;       /* biar kolom mengecil otomatis */
-}
-
-.table-box th,
-.table-box td {
-  border: 1px solid #ccc;
-  padding: 4px 6px;
-  white-space: nowrap;
-}
-
-.table-box th {
-  background: #f5f5f5;
-  top: 0;
-}
-.table-box tr:nth-child(even) {
-  background: #fafafa;
-}
-
-.table-container table {
-  border-collapse: collapse;
-  min-width: 100%;
-  font-size: 12px;
-}
-
-.table-container th, 
-.table-container td {
-  border: 1px solid #ccc;
-  padding: 6px 10px;
-  text-align: left;
-  white-space: nowrap;
-}
-
-.table-container th {
-  background: #f5f5f5;
-
-  top: 0;
-}
-
+    .table-container table {
+      border-collapse: collapse;
+      min-width: 100%;
+      font-size: 12px;
+    }
+    .table-container th, .table-container td {
+      border: 1px solid #ccc;
+      padding: 6px 10px;
+      text-align: left;
+      white-space: nowrap;
+    }
+    .table-container th { background: #f5f5f5; top: 0; }
 
     /* Sidebar */
     .sidebar {
@@ -71,15 +58,14 @@
       width: 250px;
       position: fixed;
       top: 0;
-      left: -250px; /* awalnya tertutup */
+      left: -250px; /* tertutup */
       background: #333;
       color: #fff;
       transition: 0.3s;
       padding-top: 60px;
+      z-index: 999;
     }
-    .sidebar.open {
-      left: 0;
-    }
+    .sidebar.open { left: 0; }
     .sidebar a {
       display: block;
       padding: 12px;
@@ -89,23 +75,21 @@
     .sidebar a:hover { background: #575757; }
 
     /* Burger button */
-/* Burger button khusus */
-.burger {
-  width: auto !important;      /* tidak ikut width:100% */
-  height: auto;
-  font-size: 22px;
-  cursor: pointer;
-  background: #111;
-  color: white;
-  padding: 8px 12px;
-  border: none;
-  border-radius: 6px;
-  position: fixed;
-  top: 10px;
-  left: 10px;
-  z-index: 1000;
-}
-
+    .burger {
+      width: auto !important;
+      height: auto;
+      font-size: 22px;
+      cursor: pointer;
+      background: #111;
+      color: white;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 6px;
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 1000;
+    }
 
     /* Main content */
     #main {
@@ -113,63 +97,45 @@
       transition: margin-left 0.3s;
       padding: 20px;
     }
-    #main.shift {
-      margin-left: 250px;
-    }
+    #main.shift { margin-left: 250px; }
+
     /* ===== Card untuk daftar petugas ===== */
-.petugas-section {
-  display: flex;
-  flex-direction: row;   /* susun ke samping */
-  gap: 20px;
-  margin-top: 20px;
-  overflow-x: auto;      /* biar bisa digeser kalau kepanjangan */
-  padding-bottom: 10px;  /* ruang kecil untuk scroll bar */
-}
-
-.petugas-card {
-  flex: 0 0 250px;   /* setiap card lebar fix 250px */
-  background: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-  padding: 20px;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.petugas-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 6px 16px rgba(0,0,0,0.15);
-}
-
-.petugas-card h4 {
-  margin-top: 0;
-  margin-bottom: 12px;
-  font-size: 18px;
-  color: #007bff;
-  border-bottom: 2px solid #007bff;
-  padding-bottom: 5px;
-}
-
-.petugas-card ul {
-  list-style: none;
-  padding-left: 0;
-  margin: 0;
-}
-
-.petugas-card li {
-  padding: 6px 0;
-  border-bottom: 1px solid #eee;
-  font-size: 14px;
-}
-
-.petugas-card li:last-child {
-  border-bottom: none;
-}
-
-.petugas-card li::before {
-  content: "👤";
-  margin-right: 8px;
-}
-
+    .petugas-section {
+      display: flex;
+      flex-direction: row;
+      gap: 20px;
+      margin-top: 20px;
+      overflow-x: auto;
+      padding-bottom: 10px;
+    }
+    .petugas-card {
+      flex: 0 0 250px;
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      padding: 20px;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .petugas-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+    }
+    .petugas-card h4 {
+      margin-top: 0;
+      margin-bottom: 12px;
+      font-size: 18px;
+      color: #007bff;
+      border-bottom: 2px solid #007bff;
+      padding-bottom: 5px;
+    }
+    .petugas-card ul { list-style: none; padding-left: 0; margin: 0; }
+    .petugas-card li {
+      padding: 6px 0;
+      border-bottom: 1px solid #eee;
+      font-size: 14px;
+    }
+    .petugas-card li:last-child { border-bottom: none; }
+    .petugas-card li::before { content: "👤"; margin-right: 8px; }
   </style>
 </head>
 <body>
@@ -177,7 +143,6 @@
   <div id="sidebar" class="sidebar">
     <a href="#" onclick="showLaporan()">📄 Lihat Laporan</a>
     <a href="#" onclick="showPetugas()">👥 Nama Petugas</a>
-
     <a href="{{ url_for('logout') }}">🚪 Logout</a>
   </div>
 
@@ -198,73 +163,127 @@
       main.classList.toggle("shift");
     }
 
-    // Fitur lihat laporan
-    function esc(s){return String(s ?? "").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
-
-  async function showLaporan(){
-    const res = await fetch("/api/laporan");
-    const data = await res.json();
-
-    if(!data.length){
-      document.getElementById("content").innerHTML = "<p>Tidak ada laporan</p>";
-      return;
+    // ===== Helper =====
+    function esc(s){
+      return String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+    }
+    function linkify(url){
+      if(!url) return "";
+      const u = esc(url);
+      return `<a href="${u}" target="_blank" rel="noopener">${u}</a>`;
     }
 
-    // Ganti di admin.html bagian showLaporan()
-const cols = [
-  "id", "tanggal", "nama_td", "nama_pdu", "nama_tx",
-  "studio_link", "streaming_link", "subcontrol_link",
-  "acara_15", "format_15", "acara_16", "format_16",
-  "acara_17", "format_17", "acara_18", "format_18",
-  "kendala", "waktu_kendala", "link_kendala", "kesimpulan"
-];
+    // ===== Lihat laporan (dengan kolom Timestamp (WIB) di kiri) =====
+    async function showLaporan(){
+      const res = await fetch("/api/laporan");
+      if(!res.ok){
+        document.getElementById("content").innerHTML = "<p>Gagal memuat data laporan</p>";
+        return;
+      }
+      const data = await res.json();
+      if(!data.length){
+        document.getElementById("content").innerHTML = "<p>Tidak ada laporan</p>";
+        return;
+      }
 
-   let html = "<h3>Daftar Laporan</h3>";
-html += "<div class='table-box'><table>";
-html += "<tr>" + cols.map(c => `<th>${c}</th>`).join("") + "</tr>";
+      // Susunan kolom: tambahkan timestamp_wib di paling kiri. Kolom lain tetap.
+      const cols = [
+          // ⬅️ kolom baru di kiri (hanya tampilan)
+        "id","timestamp_wib", "tanggal", "nama_td", "nama_pdu", "nama_tx",
+        "studio_link", "streaming_link", "subcontrol_link",
+        "acara_15", "format_15", "acara_16", "format_16",
+        "acara_17", "format_17", "acara_18", "format_18",
+        "kendala", "waktu_kendala", "link_kendala", "kesimpulan"
+      ];
 
-data.forEach(r => {
-  html += "<tr>" + cols.map(c => `<td>${r[c] ?? ""}</td>`).join("") + "</tr>";
-});
+      let html = "<h3>Daftar Laporan</h3>";
+      html += "<div class='table-box'><table>";
+      html += "<tr>" + cols.map(c => `<th>${esc(c.replace('_',' ').toUpperCase())}</th>`).join("") + "</tr>";
+      
+      data.forEach(r => {
+        const tds = cols.map(c => {
+          if(["studio_link","streaming_link","subcontrol_link"].includes(c)){
+            return `<td>${linkify(r[c])}</td>`;
+          }
+          if(c === "link_kendala"){
+            const parts = String(r[c] ?? "").split(",").map(s => s.trim()).filter(Boolean);
+            return `<td>${parts.map(p => linkify(p)).join("<br/>")}</td>`;
+          }
+          return `<td>${esc(r[c])}</td>`;
+        }).join("");
+        html += `<tr>${tds}</tr>`;
+      });
 
-html += "</table></div>";
-document.getElementById("content").innerHTML = html;
+      html += "</table></div>";
+      document.getElementById("content").innerHTML = html;
+    }
 
+    // ===== Daftar petugas =====
+    
+  async function showPetugas() {
+    const container = document.getElementById("content");
+    try {
+      const res = await fetch("/api/petugas", { headers: { "Accept": "application/json" } });
+
+      // Jika status bukan OK → tampilkan pesan + cuplikan isi respons
+      if (!res.ok) {
+        const text = await res.text();
+        container.innerHTML = `
+          <p>❌ Gagal memuat daftar petugas (HTTP ${res.status}).</p>
+          <pre style="white-space:pre-wrap;background:#fff3f3;border:1px solid #f5c2c7;padding:8px;border-radius:6px;max-height:200px;overflow:auto;">
+${esc(text.slice(0,500))}
+          </pre>
+        `;
+        return;
+      }
+
+      // Pastikan benar-benar JSON
+      const ctype = res.headers.get("content-type") || "";
+      if (!ctype.includes("application/json")) {
+        const text = await res.text();
+        container.innerHTML = `
+          <p>❌ Server membalas non-JSON untuk /api/petugas.</p>
+          <pre style="white-space:pre-wrap;background:#fff3f3;border:1px solid #f5c2c7;padding:8px;border-radius:6px;max-height:200px;overflow:auto;">
+${esc(text.slice(0,500))}
+          </pre>
+        `;
+        return;
+      }
+
+      const data = await res.json();
+      if (!Array.isArray(data) || !data.length) {
+        container.innerHTML = "<p>Belum ada petugas</p>";
+        return;
+      }
+
+      // kelompokkan berdasarkan jenis
+      const grouped = {};
+      data.forEach(p => {
+        if (!grouped[p.jenis]) grouped[p.jenis] = [];
+        grouped[p.jenis].push(p.nama);
+      });
+
+      let html = "<h3>Daftar Petugas</h3><div class='petugas-section'>";
+      for (const jenis in grouped) {
+        html += `
+          <div class="petugas-card">
+            <h4>${esc(jenis)}</h4>
+            <ul>
+              ${grouped[jenis].map(nama => `<li>${esc(nama)}</li>`).join("")}
+            </ul>
+          </div>
+        `;
+      }
+      html += "</div>";
+      container.innerHTML = html;
+
+    } catch (err) {
+      container.innerHTML = `
+        <p>❌ Gagal ambil data petugas: ${esc(err.message)}</p>
+      `;
+    }
   }
- async function showPetugas() {
-  const res = await fetch("/api/petugas");
-  const data = await res.json();
-
-  if (!data.length) {
-    document.getElementById("content").innerHTML = "<p>Belum ada petugas</p>";
-    return;
-  }
-
-  // kelompokkan berdasarkan jenis
-  const grouped = {};
-  data.forEach(p => {
-    if (!grouped[p.jenis]) grouped[p.jenis] = [];
-    grouped[p.jenis].push(p.nama);
-  });
-
-  let html = "<h3>Daftar Petugas</h3>";
-  html += "<div class='petugas-section'>";
-  for (const jenis in grouped) {
-    html += `
-      <div class="petugas-card">
-        <h4>${jenis}</h4>
-        <ul>
-          ${grouped[jenis].map(nama => `<li>${nama}</li>`).join("")}
-        </ul>
-      </div>
-    `;
-  }
-  html += "</div>";
-
-  document.getElementById("content").innerHTML = html;
-}
-
-  window.onload = showLaporan;
+    window.onload = showLaporan;
   </script>
 </body>
 </html>
