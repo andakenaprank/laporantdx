@@ -9,6 +9,15 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
+   <div class="form-top-action">
+    {% if session.get('role') == 'admin' %}
+      <a class="btn-login" href="{{ url_for('admin_dashboard') }}" aria-label="Buka halaman admin">Admin</a>
+    {% else %}
+      <a class="btn-login" href="{{ url_for('login', next=url_for('admin_dashboard')) }}" aria-label="Masuk sebagai admin">Login</a>
+    {% endif %}
+  </div>
+
+  <!-- konten form kamu yang sudah ada -->
   <div class="form-container">
     <div class="progressbar">
       <div class="progress-step active" data-step="1">1</div>
@@ -56,9 +65,9 @@
 
   <label for="bukti_subcontrol">📷 Upload Bukti Subcontrol</label>
   <input type="file" id="bukti_subcontrol" name="bukti_subcontrol" accept="image/*" data-req="true" required>
-
-  <button type="button" onclick="prevStep()">Back</button>
   <button type="button" onclick="nextStep()">Next</button>
+  <button type="button" onclick="prevStep()">Back</button>
+  
 </div>
 
 
@@ -109,8 +118,9 @@
             <option>Live Std 3</option>
           </select>
         </div>
-        <button type="button" onclick="prevStep()">Back</button>
         <button type="button" onclick="nextStep()">Next</button>
+        <button type="button" onclick="prevStep()">Back</button>
+        
       </div>
 
       <!-- Step 4 -->
@@ -122,8 +132,9 @@
         <div id="kendalaContainer"></div>
         <button type="button" class="btn-small" onclick="addKendala()">+ Tambah Kendala</button><br><br>
 
-        <button type="button" onclick="prevStep()">Back</button>
         <button type="submit">Submit</button>
+        <button type="button" onclick="prevStep()">Back</button>
+        
       </div>
 
 

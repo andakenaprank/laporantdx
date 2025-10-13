@@ -223,21 +223,22 @@
   async function showPetugas() {
     const container = document.getElementById("content");
     try {
-      const res = await fetch("/api/petugas", { headers: { "Accept": "application/json" } });
+      // Hindari cache
+      const res = await fetch(`/api/petugas?_=${Date.now()}`, {
+        headers: { "Accept": "application/json" },
+        cache: "no-store",
+      });
 
-      // Jika status bukan OK → tampilkan pesan + cuplikan isi respons
       if (!res.ok) {
         const text = await res.text();
         container.innerHTML = `
           <p>❌ Gagal memuat daftar petugas (HTTP ${res.status}).</p>
           <pre style="white-space:pre-wrap;background:#fff3f3;border:1px solid #f5c2c7;padding:8px;border-radius:6px;max-height:200px;overflow:auto;">
 ${esc(text.slice(0,500))}
-          </pre>
-        `;
+          </pre>`;
         return;
       }
 
-      // Pastikan benar-benar JSON
       const ctype = res.headers.get("content-type") || "";
       if (!ctype.includes("application/json")) {
         const text = await res.text();
@@ -245,31 +246,36 @@ ${esc(text.slice(0,500))}
           <p>❌ Server membalas non-JSON untuk /api/petugas.</p>
           <pre style="white-space:pre-wrap;background:#fff3f3;border:1px solid #f5c2c7;padding:8px;border-radius:6px;max-height:200px;overflow:auto;">
 ${esc(text.slice(0,500))}
-          </pre>
-        `;
+          </pre>`;
         return;
       }
 
       const data = await res.json();
-      if (!Array.isArray(data) || !data.length) {
+      if (!Array.isArray(data) || data.length === 0) {
         container.innerHTML = "<p>Belum ada petugas</p>";
         return;
       }
 
-      // kelompokkan berdasarkan jenis
+      // --- Normalisasi, kelompokkan, sort, dedup ---
       const grouped = {};
-      data.forEach(p => {
-        if (!grouped[p.jenis]) grouped[p.jenis] = [];
-        grouped[p.jenis].push(p.nama);
-      });
+      for (const p of data) {
+        const jenis = String(p.jenis ?? "").trim().toUpperCase() || "LAINNYA";
+        const nama  = String(p.nama ?? "").trim();
+        if (!nama) continue;
+        if (!grouped[jenis]) grouped[jenis] = new Set();
+        grouped[jenis].add(nama);
+      }
 
+      // Urutkan jenis dan nama
+      const jenisList = Object.keys(grouped).sort();
       let html = "<h3>Daftar Petugas</h3><div class='petugas-section'>";
-      for (const jenis in grouped) {
+      for (const jenis of jenisList) {
+        const names = Array.from(grouped[jenis]).sort((a,b)=>a.localeCompare(b,'id'));
         html += `
           <div class="petugas-card">
             <h4>${esc(jenis)}</h4>
             <ul>
-              ${grouped[jenis].map(nama => `<li>${esc(nama)}</li>`).join("")}
+              ${names.map(n => `<li>${esc(n)}</li>`).join("")}
             </ul>
           </div>
         `;
@@ -278,12 +284,10 @@ ${esc(text.slice(0,500))}
       container.innerHTML = html;
 
     } catch (err) {
-      container.innerHTML = `
-        <p>❌ Gagal ambil data petugas: ${esc(err.message)}</p>
-      `;
+      container.innerHTML = `<p>❌ Gagal ambil data petugas: ${esc(err.message)}</p>`;
     }
   }
-    window.onload = showLaporan;
+   window.onload = showLaporan;
   </script>
 </body>
 </html>

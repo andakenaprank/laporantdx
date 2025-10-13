@@ -6,13 +6,34 @@ body {
   align-items: center;
   padding: 20px;
 }
-
+.form-top-action {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 10;
+}
+.btn-login {
+  display: inline-block;
+  color: whitesmoke;
+  padding: 8px 14px;
+  font-size: 0.9rem;
+  text-decoration: none;
+  font: arial, sans-serif;
+  border-radius: 9999px;
+  border: 1px solid rgba(0,0,0,0.12);
+  background: #084680;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+.btn-login:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+}
 .form-container {
   background: #fff;
   padding: 20px;
   border-radius: 12px;
   width: 100%;
   max-width: 600px;
+   position: relative;
   box-shadow: 0 4px 10px rgba(0,0,0,0.1);
 }
 
@@ -217,6 +238,8 @@ input[type="file"]::-webkit-file-upload-button:hover {
   gap: 12px;
   margin-bottom: 15px;
 }
+
+
 
 .card-checkbox {
   flex: 1 1 calc(20% - 12px); /* 5 card per baris */
