@@ -152,10 +152,64 @@
   <!-- Content -->
   <div id="main">
     <h2>Admin Dashboard</h2>
+    <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
+  <label for="filter-waktu"><strong>Filter Waktu:</strong></label>
+  <select id="filter-waktu">
+    <option value="">Semua</option>
+    <option value="pagi">Pagi</option>
+    <option value="sore">Sore</option>
+  </select>
+  <button id="btn-apply-filter">Terapkan</button>
+</div>
+
     <div id="content"></div>
   </div>
 
   <script>
+    async function loadLaporan(waktu = "") {
+  const p = new URLSearchParams();
+  if (waktu) p.set("waktu", waktu); // 'pagi' | 'sore'
+  const url = "/admin_api/laporan" + (p.toString() ? `?${p.toString()}` : "");
+
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) {
+    console.error("Gagal memuat laporan:", res.status);
+    return;
+  }
+  const payload = await res.json();
+  const items = payload.items || [];
+
+  const tbody = document.querySelector("#tbl-laporan tbody");
+  if (!tbody) return;
+
+  tbody.innerHTML = items.map(row => `
+    <tr>
+      <td>${row.id}</td>
+      <td>${row.tanggal || ""}</td>
+      <td>${row.nama_td || ""}</td>
+      <td>${row.nama_pdu || ""}</td>
+      <td>${row.nama_tx || ""}</td>
+      <td>${row.acara_15 || ""}</td>
+      <td>${row.format_15 || ""}</td>
+      <td>${row.acara_16 || ""}</td>
+      <td>${row.format_16 || ""}</td>
+      <td>${row.acara_17 || ""}</td>
+      <td>${row.format_17 || ""}</td>
+      <td>${row.acara_18 || ""}</td>
+      <td>${row.format_18 || ""}</td>
+      <td>${row.timestamp_wib || ""}</td>
+    </tr>
+  `).join("");
+}
+
+document.getElementById("btn-apply-filter").addEventListener("click", () => {
+  const waktu = document.getElementById("filter-waktu").value;
+  loadLaporan(waktu);
+});
+
+// load awal (tanpa filter)
+loadLaporan();
+
     function toggleSidebar() {
       const sidebar = document.getElementById("sidebar");
       const main = document.getElementById("main");

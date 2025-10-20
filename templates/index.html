@@ -71,57 +71,47 @@
 </div>
 
 
+            <!-- Step 3 -->
       <!-- Step 3 -->
-      <div class="form-step" id="step-3">
-        <h3>Acara - Acara</h3>
-        <div>
-          <input type="text" name="acara_15" placeholder="Acara 15.00 - 15.59" data-req="true">
-          <select name="format_15" data-req="true">
-            <option value="">Pilih Format</option>
-            <option>Playback</option>
-            <option>Relay</option>
-            <option>Live Std 1</option>
-            <option>Live Std 2</option>
-            <option>Live Std 3</option>
-          </select>
-        </div>
-        <div>
-          <input type="text" name="acara_16" placeholder="Acara 16.00 - 16.59" data-req="true">
-          <select name="format_16" data-req="true">
-            <option value="">Pilih Format</option>
-            <option>Playback</option>
-            <option>Relay</option>
-            <option>Live Std 1</option>
-            <option>Live Std 2</option>
-            <option>Live Std 3</option>
-          </select>
-        </div>
-        <div>
-          <input type="text" name="acara_17" placeholder="Acara 17.00 - 17.59" data-req="true">
-          <select name="format_17" data-req="true">
-            <option value="">Pilih Format</option>
-            <option>Playback</option>
-            <option>Relay</option>
-            <option>Live Std 1</option>
-            <option>Live Std 2</option>
-            <option>Live Std 3</option>
-          </select>
-        </div>
-        <div>
-          <input type="text" name="acara_18" placeholder="Acara 18.00 - 18.59" data-req="true">
-          <select name="format_18" data-req="true">
-            <option value="">Pilih Format</option>
-            <option>Playback</option>
-            <option>Relay</option>
-            <option>Live Std 1</option>
-            <option>Live Std 2</option>
-            <option>Live Std 3</option>
-          </select>
-        </div>
-        <button type="button" onclick="nextStep()">Next</button>
-        <button type="button" onclick="prevStep()">Back</button>
-        
-      </div>
+<div class="form-step" id="step-3">
+  <h3>Acara - Acara</h3>
+
+  <div class="row" style="margin-bottom:10px;">
+    <label style="font-weight:600; margin-right:10px;">Waktu Siaran</label>
+    <label><input type="radio" name="waktu_siaran" value="pagi"> Pagi</label>
+    <label style="margin-left:15px;"><input type="radio" name="waktu_siaran" value="sore" checked> Sore</label>
+    <span style="font-size:12px; color:#666; margin-left:10px;">(Jam & daftar acara mengikuti pilihan ini)</span>
+  </div>
+
+  <div class="cards-section">
+    <h4 id="slot-title-15">15.00 - 15.59</h4>
+    <div id="acaraCards-15" class="cards-grid acara-grid" data-slot="15"></div>
+  </div>
+
+  <div class="cards-section">
+    <h4 id="slot-title-16">16.00 - 16.59</h4>
+    <div id="acaraCards-16" class="cards-grid acara-grid" data-slot="16"></div>
+  </div>
+
+  <div class="cards-section">
+    <h4 id="slot-title-17">17.00 - 17.59</h4>
+    <div id="acaraCards-17" class="cards-grid acara-grid" data-slot="17"></div>
+  </div>
+
+  <div class="cards-section">
+    <h4 id="slot-title-18">18.00 - 18.59</h4>
+    <div id="acaraCards-18" class="cards-grid acara-grid" data-slot="18"></div>
+  </div>
+
+  <p style="font-size:12px;color:#666;margin-top:6px;">
+    Nilai tersimpan: <code>{Nama(Jenis),pagi|sore}</code> → backend memecah jadi <em>Acara</em> (nama) & <em>Format</em> (jenis).
+  </p>
+
+  <button type="button" onclick="prevStep()">Back</button>
+  <button type="button" onclick="nextStep()">Next</button>
+</div>
+
+
 
       <!-- Step 4 -->
       <div class="form-step" id="step-4">

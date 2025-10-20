@@ -17,6 +17,12 @@ from sqlalchemy.orm import sessionmaker
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 from sqlalchemy.pool import NullPool
 import pathlib
+import re
+from reportlab.platypus import Image as RLImage  # untuk logo di PDF
+from reportlab.lib.units import mm
+
+
+
 # --- Cloudinary ---
 import cloudinary
 import cloudinary.uploader as cldu
@@ -94,7 +100,7 @@ from datetime import datetime, date, timezone, timedelta
 try:
     # Python 3.9+ (preferred)
     from zoneinfo import ZoneInfo
-    TZ_WIB = ZoneInfo("Asia/Jakarta")
+    TZ_WIB = ZoneInfo("Asia/Makassar")
 except Exception:
     # Fallback tanpa paket eksternal: offset tetap UTC+7
     TZ_WIB = timezone(timedelta(hours=7))
@@ -119,6 +125,9 @@ def fmt_wib(x) -> str:
     if isinstance(x, date):
         return x.strftime("%Y-%m-%d")
     return str(x)
+# app.py (di bawah definisi engine & fmt_wib)
+from admin_api import create_admin_api
+app.register_blueprint(create_admin_api(engine, fmt_wib), url_prefix="/admin_api")
 
 
 # ----------------- AUTH -----------------
@@ -179,6 +188,7 @@ def require_login():
         "form_laporan",
         "submit",
         "download_pdf",
+        "api_acara",
         "api_petugas",
         "login",
         "login_petugas",
@@ -236,7 +246,28 @@ def api_petugas():
     resp.headers["Pragma"] = "no-cache"
     resp.headers["Expires"] = "0"
     return resp
-
+# ----------------- API ACARA (Publik) -----------------
+@app.route("/api/acara")
+def api_acara():
+    waktu = (request.args.get("waktu") or "").strip().lower()
+    q = """
+        SELECT id, nama, jenis, waktu
+        FROM acara
+    """
+    params = {}
+    if waktu in ("pagi", "sore"):
+        q += " WHERE lower(trim(waktu)) = :w"
+        params["w"] = waktu
+    q += " ORDER BY nama ASC"
+    with engine.connect() as conn:
+        rows = conn.execute(text(q), params).fetchall()
+    data = [dict(r._mapping) for r in rows]
+    # no-cache
+    resp = jsonify(data)
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    resp.headers["Expires"] = "0"
+    return resp
 # ----------------- API LAPORAN (Admin only) -----------------
 @app.route("/api/laporan")
 def api_laporan():
@@ -362,8 +393,38 @@ def build_pdf_bytes(row_dict: dict) -> bytes:
         return Paragraph(f'<a href="{esc_html(u)}">{esc_html(display)}</a>', link_style)
 
     # Header
-    elements.append(Paragraph("LAPORAN TEKNIS HARIAN", styles["Heading1"]))
-    elements.append(Spacer(1, 12))
+    # ---------- Header dengan Logo kiri atas ----------
+    logo_path = os.path.join(app.root_path, "static", "logo.png")
+    logo_flow = None
+    try:
+        if os.path.exists(logo_path):
+            # atur ukuran logo; sesuaikan jika perlu
+            logo_flow = RLImage(logo_path, width=18*mm, height=15*mm)  # kecil & rapi
+    except Exception:
+        logo_flow = None  # fallback tanpa logo
+
+    from reportlab.platypus import Table, TableStyle  # sudah di-import, aman diulang
+    from reportlab.lib import colors
+
+    if logo_flow:
+        header_tbl = Table(
+            [[logo_flow, Paragraph("LAPORAN TEKNIS HARIAN", styles["Heading1"])]],
+            colWidths=[22*mm, 170*mm]
+        )
+        header_tbl.setStyle(TableStyle([
+            ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+            ("LEFTPADDING", (0,0), (-1,-1), 0),
+            ("RIGHTPADDING", (0,0), (-1,-1), 0),
+            ("TOPPADDING", (0,0), (-1,-1), 0),
+            ("BOTTOMPADDING", (0,0), (-1,-1), 0),
+            # tanpa border
+        ]))
+        elements.append(header_tbl)
+        elements.append(Spacer(1, 8))
+    else:
+        elements.append(Paragraph("LAPORAN TEKNIS HARIAN", styles["Heading1"]))
+        elements.append(Spacer(1, 12))
+
 
     # Identitas
     identitas = [
@@ -401,13 +462,62 @@ def build_pdf_bytes(row_dict: dict) -> bytes:
     elements.append(Spacer(1, 12))
 
     # Acara
-    acara = [
-        ["15.00-15.59", safe(row_dict.get("acara_15")), safe(row_dict.get("format_15"))],
-        ["16.00-16.59", safe(row_dict.get("acara_16")), safe(row_dict.get("format_16"))],
-        ["17.00-17.59", safe(row_dict.get("acara_17")), safe(row_dict.get("format_17"))],
-        ["18.00-18.59", safe(row_dict.get("acara_18")), safe(row_dict.get("format_18"))],
+    # ---------- Acara ----------
+   
+        # ---------- Acara: pilih label jam dinamis (pagi/sore) & tampilkan nama saja ----------
+    import re
+    RE_ITEM = re.compile(r"^\{\s*(?P<nama>.+?)\s*,\s*(?P<waktu>pagi|sore)\s*\}$", re.IGNORECASE)
+
+    def only_names(acara_str: str) -> str:
+        """'{Nama,waktu}; {Nama2,waktu}' -> 'Nama; Nama2'"""
+        if not acara_str:
+            return ""
+        parts = [p.strip() for p in str(acara_str).split(";") if p.strip()]
+        names = []
+        for p in parts:
+            m = RE_ITEM.match(p)
+            names.append(m.group("nama") if m else p)
+        return "; ".join(names)
+
+    def detect_waktu(*acara_list: str) -> str:
+        """Hitung token 'pagi' vs 'sore' dari semua kolom acara, pilih mayoritas. Default 'sore'."""
+        pagi, sore = 0, 0
+        for s in acara_list:
+            if not s:
+                continue
+            for token in [t.strip() for t in s.split(";") if t.strip()]:
+                m = RE_ITEM.match(token)
+                if not m:
+                    continue
+                if m.group("waktu").lower() == "pagi":
+                    pagi += 1
+                else:
+                    sore += 1
+        if pagi > sore:
+            return "pagi"
+        return "sore"
+
+    a15 = safe(row_dict.get("acara_15"))
+    a16 = safe(row_dict.get("acara_16"))
+    a17 = safe(row_dict.get("acara_17"))
+    a18 = safe(row_dict.get("acara_18"))
+
+    waktu_siaran = detect_waktu(a15, a16, a17, a18)
+
+    SLOT_LABELS = {
+        "sore": { "15": "15.00 - 15.59", "16": "16.00 - 16.59", "17": "17.00 - 17.59", "18": "18.00 - 18.59" },
+        "pagi": { "15": "08.00 - 08.59", "16": "09.00 - 09.59", "17": "10.00 - 10.59", "18": "11.00 - 11.59" },
+    }
+    L = SLOT_LABELS.get(waktu_siaran, SLOT_LABELS["sore"])
+
+    acara_rows = [
+        [L["15"], only_names(a15), safe(row_dict.get("format_15"))],
+        [L["16"], only_names(a16), safe(row_dict.get("format_16"))],
+        [L["17"], only_names(a17), safe(row_dict.get("format_17"))],
+        [L["18"], only_names(a18), safe(row_dict.get("format_18"))],
     ]
-    t3 = Table([["Jam", "Acara", "Format"]] + acara, colWidths=[100, 200, 150])
+
+    t3 = Table([["Jam", "Acara", "Format"]] + acara_rows, colWidths=[120, 250, 100])
     t3.setStyle(TableStyle([
         ("VALIGN", (0,0), (-1,-1), "TOP"),
         ("BOX", (0,0), (-1,-1), 1, colors.black),
@@ -417,6 +527,7 @@ def build_pdf_bytes(row_dict: dict) -> bytes:
     elements.append(Paragraph("Step 3: Acara - Acara", styles["Heading3"]))
     elements.append(t3)
     elements.append(Spacer(1, 12))
+
 
     # Kendala
     kendalas = []
@@ -467,15 +578,17 @@ def form_laporan():
 @app.route("/submit", methods=["POST"])
 def submit():
     try:
+        import re  # dipakai untuk parse value kartu {Nama(Jenis),pagi/sore}
+
         data = request.form.to_dict(flat=False)
 
-        # Timestamp WIB
-        ts_wib_aw = now_wib_minute_aw()
-        ts_wib_naive = to_naive_wib(ts_wib_aw)
+        # ===== Timestamp WIB =====
+        ts_wib_aw = now_wib_minute_aw()            # aware
+        ts_wib_naive = to_naive_wib(ts_wib_aw)     # naive (untuk kolom TIMESTAMP tanpa tz)
         ts_str_for_name = ts_wib_aw.strftime("%Y-%m-%d_%H-%M")
         ts_str_for_sheet = ts_wib_aw.strftime("%Y-%m-%d %H:%M")
 
-        # tanggal_manual → DATE
+        # ===== Tanggal (DATE) =====
         tgl_str = (data.get("tanggal_manual", [""])[0] or "").strip()
         if tgl_str:
             try:
@@ -485,11 +598,11 @@ def submit():
         else:
             tanggal_date = ts_wib_aw.date()
 
-        # petugas transmisi multi
+        # ===== Petugas Transmisi (multi) =====
         petugas_transmisi_list = data.get("petugas_transmisi[]", [])
         petugas_transmisi = ", ".join(petugas_transmisi_list)
 
-        # Upload bukti (ke Cloudinary)
+        # ===== Upload bukti (Cloudinary) =====
         studio_file = request.files.get("bukti_studio")
         streaming_file = request.files.get("bukti_streaming")
         subcontrol_file = request.files.get("bukti_subcontrol")
@@ -498,7 +611,7 @@ def submit():
         streaming_link = _upload_image_to_cloudinary(streaming_file, FOLDER_STREAMING, f"streaming_{ts_str_for_name}") if streaming_file else ""
         subcontrol_link = _upload_image_to_cloudinary(subcontrol_file, FOLDER_SUBCONTROL, f"subcontrol_{ts_str_for_name}") if subcontrol_file else ""
 
-        # Kendala (opsional) → daftar link Cloudinary
+        # ===== Kendala (opsional) =====
         fotos = request.files.getlist("kendala_foto[]")
         folder_links = []
         for i, foto in enumerate(fotos):
@@ -514,7 +627,7 @@ def submit():
                     folder_links.append(link)
         folder_link_str = ", ".join(folder_links)
 
-        # Kesimpulan sederhana
+        # ===== Kesimpulan sederhana dari waktu kendala =====
         kesimpulan = "lancar"
         waktu_kendala_list = data.get("kendala_waktu[]", [])
         ada_sebelum, ada_sesudah = False, False
@@ -536,7 +649,45 @@ def submit():
         elif ada_sesudah:
             kesimpulan = "ada kendala saat siaran"
 
-        # Simpan DB
+        # ===== Acara dari kartu (multi) =====
+        # value checkbox: "{Nama(Jenis),pagi|sore}"
+        CHOICE_RE = re.compile(
+            r'^\{(?P<nama>.+?)\((?P<jenis>.+?)\),(?P<waktu>pagi|sore)\}$',
+            re.IGNORECASE
+        )
+
+        def parse_choice(val: str):
+            m = CHOICE_RE.match((val or "").strip())
+            if not m:
+                return ("", "", "")
+            return (
+                m.group("nama").strip(),
+                m.group("jenis").strip(),
+                m.group("waktu").strip().lower()
+            )
+
+        def join_acara_format(arr):
+            """
+            Kembalikan:
+              - acara_join  -> '{nama,waktu}; {nama,waktu}'
+              - format_join -> 'jenis; jenis'
+            """
+            acara_parts, format_parts = [], []
+            for raw in arr:
+                nama, jenis, waktu = parse_choice(raw)
+                if nama and waktu:
+                    acara_parts.append(f"{{{nama},{waktu}}}")
+                    format_parts.append(jenis or "-")
+            acara_join = "; ".join(acara_parts) if acara_parts else ""
+            format_join = "; ".join(format_parts) if format_parts else "-"
+            return acara_join, format_join
+
+        acara_15_join, format_15_join = join_acara_format(data.get("acara_15[]", []))
+        acara_16_join, format_16_join = join_acara_format(data.get("acara_16[]", []))
+        acara_17_join, format_17_join = join_acara_format(data.get("acara_17[]", []))
+        acara_18_join, format_18_join = join_acara_format(data.get("acara_18[]", []))
+
+        # ===== Simpan DB =====
         sql = text("""
         INSERT INTO laporanx (
             tanggal, nama_td, nama_pdu, nama_tx,
@@ -563,14 +714,14 @@ def submit():
             "studio_link": studio_link,
             "streaming_link": streaming_link,
             "subcontrol_link": subcontrol_link,
-            "acara_15": data.get("acara_15", [""])[0],
-            "format_15": data.get("format_15", [""])[0],
-            "acara_16": data.get("acara_16", [""])[0],
-            "format_16": data.get("format_16", [""])[0],
-            "acara_17": data.get("acara_17", [""])[0],
-            "format_17": data.get("format_17", [""])[0],
-            "acara_18": data.get("acara_18", [""])[0],
-            "format_18": data.get("format_18", [""])[0],
+            "acara_15": acara_15_join,
+            "format_15": format_15_join,
+            "acara_16": acara_16_join,
+            "format_16": format_16_join,
+            "acara_17": acara_17_join,
+            "format_17": format_17_join,
+            "acara_18": acara_18_join,
+            "format_18": format_18_join,
             "kendala": ", ".join(data.get("kendala_keterangan[]", [])),
             "waktu_kendala": ", ".join(waktu_kendala_list),
             "link_kendala": folder_link_str,
@@ -582,7 +733,7 @@ def submit():
             result = conn.execute(sql, values)
             last_id = result.fetchone()[0]
 
-        # Simpan ke Sheets
+        # ===== Simpan ke Google Sheet =====
         sheet_row = [
             str(values["tanggal"]),
             values["nama_td"],
@@ -603,9 +754,7 @@ def submit():
         ]
         sheet.append_row(sheet_row)
 
-        # Bangun PDF (bytes) lalu upload ke Cloudinary → dapatkan URL
-        # Ambil ulang row untuk isi PDF (agar id dan timestamp dari DB konsisten)
-                # Bangun PDF (bytes) lalu SIMPAN LOKAL
+        # ===== Bangun & Simpan PDF LOKAL =====
         with engine.connect() as conn:
             row = conn.execute(text("SELECT * FROM laporanx WHERE id=:id"), {"id": last_id}).fetchone()
 
@@ -615,18 +764,18 @@ def submit():
         with open(save_path, "wb") as f:
             f.write(pdf_bytes)
 
-        # URL publik (lokal) untuk membuka PDF
         pdf_url = url_for("serve_local_pdf", filename=filename, _external=True)
 
         return jsonify({
             "status": "success",
             "message": "Laporan berhasil disimpan!",
-            "pdf_url": pdf_url  # ← sekarang URL lokal, bukan Cloudinary
+            "pdf_url": pdf_url
         })
 
     except Exception as e:
         app.logger.exception("Submit gagal")
         return jsonify({"status": "error", "message": str(e)})
+
 
 @app.route("/files/pdf/<path:filename>")
 def serve_local_pdf(filename):

@@ -9,3 +9,4 @@ token.pickle
 create_admin.py
 drive_auth.py
 *.pdf
+supabase/
